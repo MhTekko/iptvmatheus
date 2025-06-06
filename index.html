@@ -1,118 +1,103 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Reprodutor IPTV com Categorias</title>
-  <link href="https://vjs.zencdn.net/8.6.1/video-js.css" rel="stylesheet" />
-  <style>
-    body {
-      background-color: #111;
-      color: white;
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 20px;
-    }
-    h1, h2 {
-      text-align: center;
-    }
-    .container {
-      display: flex;
-      flex-direction: row;
-      gap: 20px;
-    }
-    .sidebar {
-      width: 250px;
-      background-color: #222;
-      padding: 15px;
-      border-radius: 10px;
-      overflow-y: auto;
-      height: 80vh;
-    }
-    .sidebar h2 {
-      font-size: 18px;
-      margin-top: 0;
-    }
-    .channel {
-      cursor: pointer;
-      padding: 8px;
-      margin: 4px 0;
-      background-color: #333;
-      border-radius: 5px;
-      transition: background 0.3s;
-    }
-    .channel:hover {
-      background-color: #555;
-    }
-    .video-wrapper {
-      flex: 1;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-    .video-js {
-      width: 100%;
-      max-width: 800px;
-    }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Catálogo M3U8 - ManoTV</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
-  <h1>CANAIS AO VIVO!</h1>
-  <div class="container">
-    <div class="sidebar">
-      <h2>Entretenimento</h2>
-      <div class="channel" onclick="trocarCanal('https://iptv.vivatele.com:443/live/viva_padrao/viva2384/1.m3u8')">GLOBO SP</div>
+  <div class="app-container">
+    <!-- Sidebar esquerda -->
+    <aside class="sidebar">
+      <h2>CANAIS</h2>
 
-      <div class="channel" onclick="trocarCanal('https://video05.logicahost.com.br/tvguajara/tvguajara/playlist.m3u8')">SBT TV GUARUJA</div>
+    
 
-	<div class="channel" onclick="trocarCanal('https://aym-cbtv.otteravision.com/aym/cbtv/cbtv_480p.m3u8')">COMBA TV</div>
+      <!-- Nova barra de pesquisa -->
+      <input
+        type="text"
+        id="searchInput"
+        placeholder="Pesquisar canais..."
+        oninput="filterChannels()"
+        style="width: 100%; padding: 5px; margin: 10px 0;"
+      />
 
-      <div class="channel" onclick="trocarCanal('https://24hrs.homelinux.com:8080/24H-pokemon/video.m3u8')">EM PROCESSO</div>
+      <div id="channelList" class="channel-list"></div>
+    </aside>
 
-	<div class="channel" onclick="trocarCanal('https://iptv.vivatele.com:443/live/viva_padrao/viva2384/1.m3u8')">EM PROCESSO</div>
-
-      <div class="channel" onclick="trocarCanal('https://video05.logicahost.com.br/tvguajara/tvguajara/playlist.m3u8')">EM PROCESSO</div>
-
-	<div class="channel" onclick="trocarCanal('https://iptv.vivatele.com:443/live/viva_padrao/viva2384/1.m3u8')">EM PROCESSO</div>
-
-      <div class="channel" onclick="trocarCanal('https://video05.logicahost.com.br/tvguajara/tvguajara/playlist.m3u8')">EM PROCESSO</div>
-
-	<div class="channel" onclick="trocarCanal('https://iptv.vivatele.com:443/live/viva_padrao/viva2384/1.m3u8')">EM PROCESSO</div>
-
-      <div class="channel" onclick="trocarCanal('https://video05.logicahost.com.br/tvguajara/tvguajara/playlist.m3u8')">EM PROCESSO</div>
-
-	<div class="channel" onclick="trocarCanal('https://iptv.vivatele.com:443/live/viva_padrao/viva2384/1.m3u8')">EM PROCESSO</div>
-
-      <div class="channel" onclick="trocarCanal('https://video05.logicahost.com.br/tvguajara/tvguajara/playlist.m3u8')">EM PROCESSO</div>
-
-
-
-      <h2>EM PROCESSO</h2>
-      <div class="channel" onclick="trocarCanal('http://89.254.128.5:22280/cartoon_network/index.m3u8')">Cartoon Network</div>
-
-      <!-- Adicione mais categorias e canais conforme necessário -->
-    </div>
-
-    <div class="video-wrapper">
-      <video
-        id="player"
-        class="video-js vjs-default-skin"
-        controls
-        preload="auto"
-        data-setup='{}'>
-        <source src="https://iptv.vivatele.com:443/live/viva_padrao/viva2384/1.m3u8" type="application/x-mpegURL">
-        Seu navegador não suporta vídeo HLS.
-      </video>
-    </div>
+    <!-- Conteúdo principal -->
+    <main class="main-content">
+      <h1>REPRODUZINDO AGORA</h1>
+      <video id="video" controls autoplay></video>
+    </main>
   </div>
 
-  <script src="https://vjs.zencdn.net/8.6.1/video.min.js"></script>
   <script>
-    const player = videojs('player');
+    let channels = []; // Array global para armazenar os canais carregados
 
-    function trocarCanal(url) {
-      player.src({ src: url, type: 'application/x-mpegURL' });
-      player.play();
+    // URL escondida dentro do código
+    const m3u8Url = "https://raw.githubusercontent.com/ManoLimah/Manoteste/refs/heads/main/ManoTV.m3u";
+
+    async function loadM3U8() {
+      try {
+        const response = await fetch(m3u8Url);
+        const text = await response.text();
+        const lines = text.split('\n');
+
+        channels = []; // limpa antes de carregar
+
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].startsWith('#EXTINF')) {
+            const title = lines[i].split(',')[1] || 'Sem Título';
+            const streamUrl = lines[i + 1];
+            channels.push({ title, streamUrl });
+          }
+        }
+
+        displayChannels(channels);
+      } catch (error) {
+        alert('Erro ao carregar o arquivo .m3u8. Verifique a URL.');
+      }
     }
+
+    function displayChannels(list) {
+      const channelList = document.getElementById('channelList');
+      channelList.innerHTML = '';
+
+      list.forEach(({ title, streamUrl }) => {
+        const channelItem = document.createElement('div');
+        channelItem.className = 'channel-item';
+        channelItem.textContent = title;
+        channelItem.onclick = () => playStream(streamUrl);
+        channelList.appendChild(channelItem);
+      });
+    }
+
+    function filterChannels() {
+      const filter = document.getElementById('searchInput').value.toLowerCase();
+      const filtered = channels.filter(channel => channel.title.toLowerCase().includes(filter));
+      displayChannels(filtered);
+    }
+
+    function playStream(url) {
+      const video = document.getElementById('video');
+      if (Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = url;
+        video.addEventListener('loadedmetadata', () => video.play());
+      } else {
+        alert('Seu navegador não suporta HLS (.m3u8).');
+      }
+    }
+
+    // Carrega automaticamente ao abrir a página
+    window.onload = loadM3U8;
   </script>
 </body>
 </html>
