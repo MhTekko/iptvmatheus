@@ -1,103 +1,241 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Iptv Matheus</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <title>ManoTV Avançado</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    :root {
+      --bg: #111;
+      --text: white;
+      --sidebar: #222;
+      --hover: #555;
+      --active: #444;
+    }
+    body.light {
+      --bg: #f2f2f2;
+      --text: #111;
+      --sidebar: #ddd;
+      --hover: #bbb;
+      --active: #aaa;
+    }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+      background-color: var(--bg);
+      color: var(--text);
+      transition: background 0.3s, color 0.3s;
+    }
+    .sidebar {
+      width: 280px;
+      background: var(--sidebar);
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      border-right: 1px solid #444;
+    }
+    .sidebar h2 {
+      font-size: 18px;
+    }
+    .search-bar {
+      padding: 8px;
+      border-radius: 5px;
+      border: none;
+      width: 100%;
+      font-size: 14px;
+    }
+    .category {
+      padding: 6px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      background-color: var(--active);
+    }
+    .category:hover,
+    .category.active {
+      background-color: var(--hover);
+    }
+    .categories {
+      overflow-y: auto;
+      flex: 1;
+    }
+    .main {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    video {
+      width: 100%;
+      max-height: 400px;
+      background: black;
+      margin-bottom: 20px;
+    }
+    .channel-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+    }
+    .channel {
+      background: var(--active);
+      padding: 10px;
+      text-align: center;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .channel:hover {
+      background: var(--hover);
+    }
+    .channel img {
+      width: 100%;
+      height: 100px;
+      object-fit: contain;
+      margin-bottom: 5px;
+      background: #000;
+    }
+    .toggle-theme {
+      padding: 6px 10px;
+      background: var(--active);
+      color: var(--text);
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .toggle-theme:hover {
+      background: var(--hover);
+    }
+  </style>
 </head>
 <body>
-  <div class="app-container">
-    <!-- Sidebar esquerda -->
-    <aside class="sidebar">
-      <h2>CANAIS</h2>
+  <div class="sidebar">
+    <h2>Modo</h2>
+    <button class="toggle-theme" onclick="toggleTheme()">Alternar Tema</button>
+    <h2>Pesquisar</h2>
+    <input type="text" id="search" class="search-bar" placeholder="Buscar canal...">
+    <h2>Categorias</h2>
+    <div class="categories" id="categories"></div>
+  </div>
 
-    
-
-      <!-- Nova barra de pesquisa -->
-      <input
-        type="text"
-        id="searchInput"
-        placeholder="Pesquisar canais..."
-        oninput="filterChannels()"
-        style="width: 100%; padding: 5px; margin: 10px 0;"
-      />
-
-      <div id="channelList" class="channel-list"></div>
-    </aside>
-
-    <!-- Conteúdo principal -->
-    <main class="main-content">
-      <h1>REPRODUZINDO AGORA</h1>
-      <video id="video" controls autoplay></video>
-    </main>
+  <div class="main">
+    <video id="player" controls autoplay></video>
+    <div class="channel-list" id="channels"></div>
   </div>
 
   <script>
-    let channels = []; // Array global para armazenar os canais carregados
+    const M3U_URL = "https://raw.githubusercontent.com/ManoLimah/Manoteste/refs/heads/main/ManoTV.m3u";
 
-    // URL escondida dentro do código
-    const m3u8Url = "https://raw.githubusercontent.com/ManoLimah/Manoteste/refs/heads/main/ManoTV.m3u";
+    const categoriesContainer = document.getElementById("categories");
+    const channelsContainer = document.getElementById("channels");
+    const searchInput = document.getElementById("search");
+    const player = document.getElementById("player");
 
-    async function loadM3U8() {
+    let allChannels = [];
+    let filteredChannels = [];
+    let currentCategory = "Todos";
+
+    async function fetchM3U() {
       try {
-        const response = await fetch(m3u8Url);
-        const text = await response.text();
-        const lines = text.split('\n');
-
-        channels = []; // limpa antes de carregar
-
-        for (let i = 0; i < lines.length; i++) {
-          if (lines[i].startsWith('#EXTINF')) {
-            const title = lines[i].split(',')[1] || 'Sem Título';
-            const streamUrl = lines[i + 1];
-            channels.push({ title, streamUrl });
-          }
-        }
-
-        displayChannels(channels);
-      } catch (error) {
-        alert('Erro ao carregar o arquivo .m3u8. Verifique a URL.');
+        const res = await fetch(M3U_URL);
+        const text = await res.text();
+        parseM3U(text);
+      } catch (e) {
+        alert("Erro ao carregar a lista M3U.");
+        console.error(e);
       }
     }
 
-    function displayChannels(list) {
-      const channelList = document.getElementById('channelList');
-      channelList.innerHTML = '';
+    function parseM3U(data) {
+  const lines = data.split("\n");
+  let current = {};
+  lines.forEach(line => {
+    line = line.trim();
+    if (line.startsWith("#EXTINF")) {
+      current = {
+        name: line.match(/,(.*)/)?.[1]?.trim() || "Sem Nome",
+        group: line.match(/group-title="(.*?)"/)?.[1]?.trim() || "Sem Categoria",
+        logo: line.match(/tvg-logo="(.*?)"/)?.[1]?.trim() || ""
+      };
+    } else if (line.startsWith("http")) {
+      if (current && current.name && line) {
+        current.url = line;
+        allChannels.push({ ...current });
+      }
+    }
+  });
+  buildCategories();
+  filterChannels();
+}
 
-      list.forEach(({ title, streamUrl }) => {
-        const channelItem = document.createElement('div');
-        channelItem.className = 'channel-item';
-        channelItem.textContent = title;
-        channelItem.onclick = () => playStream(streamUrl);
-        channelList.appendChild(channelItem);
+    function buildCategories() {
+      const groups = ["Todos", ...new Set(allChannels.map(c => c.group))];
+      categoriesContainer.innerHTML = "";
+      groups.forEach(group => {
+        const div = document.createElement("div");
+        div.className = "category" + (group === "Todos" ? " active" : "");
+        div.textContent = group;
+        div.onclick = () => {
+          currentCategory = group;
+          document.querySelectorAll('.category').forEach(el => el.classList.remove("active"));
+          div.classList.add("active");
+          filterChannels();
+        };
+        categoriesContainer.appendChild(div);
       });
     }
 
     function filterChannels() {
-      const filter = document.getElementById('searchInput').value.toLowerCase();
-      const filtered = channels.filter(channel => channel.title.toLowerCase().includes(filter));
-      displayChannels(filtered);
+      const searchTerm = searchInput.value.toLowerCase();
+      filteredChannels = allChannels.filter(c => {
+        const matchesGroup = currentCategory === "Todos" || c.group === currentCategory;
+        const matchesSearch = c.name.toLowerCase().includes(searchTerm);
+        return matchesGroup && matchesSearch;
+      });
+      renderChannels();
     }
 
-    function playStream(url) {
-      const video = document.getElementById('video');
+    function renderChannels() {
+      channelsContainer.innerHTML = "";
+      filteredChannels.forEach(channel => {
+        const div = document.createElement("div");
+        div.className = "channel";
+        div.onclick = () => playChannel(channel.url);
+        if (channel.logo) {
+          const img = document.createElement("img");
+          img.src = channel.logo;
+          img.alt = channel.name;
+          div.appendChild(img);
+        }
+        const name = document.createElement("div");
+        name.textContent = channel.name;
+        div.appendChild(name);
+        channelsContainer.appendChild(div);
+      });
+    }
+
+    function playChannel(url) {
       if (Hls.isSupported()) {
         const hls = new Hls();
         hls.loadSource(url);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = url;
-        video.addEventListener('loadedmetadata', () => video.play());
+        hls.attachMedia(player);
+      } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+        player.src = url;
       } else {
-        alert('Seu navegador não suporta HLS (.m3u8).');
+        alert("Seu navegador não suporta esse tipo de stream.");
       }
     }
 
-    // Carrega automaticamente ao abrir a página
-    window.onload = loadM3U8;
+    function toggleTheme() {
+      document.body.classList.toggle("light");
+    }
+
+    searchInput.addEventListener("input", filterChannels);
+    fetchM3U();
   </script>
 </body>
 </html>
